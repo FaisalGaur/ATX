@@ -11,8 +11,6 @@
 # Is it really useful, I don't know, really don't know.
 # so code just stop here.
 
-
-
 import time
 import subprocess
 import re
@@ -23,6 +21,30 @@ import matplotlib.pyplot as plt
 import datetime as dt
 
 nanoseconds_per_second = 1e9
+
+def subprocess_cmd(command):
+    try:
+        
+        process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
+        proc_stdout = process.communicate()[0].strip()
+        return proc_stdout
+    
+    except Exception, error:
+        print error
+
+def old_top_view():
+    try:
+        out = subprocess_cmd("adb shell \"dumpsys window windows | grep -E 'mCurrentFocus'\"")
+        top_view = None
+        view_name = out.split()
+        view_name = view_name[-1]
+        top_view = view_name[:-1]
+
+        return top_view
+
+    except Exception, error:
+        print error
+
 
 def get_top_view():
     try:
@@ -64,7 +86,7 @@ def init_frame_data(view):
             base_index += 1
 
         if base_timestamp == 0:
-            raise RuntimeError("Initial frame collect failed")
+            print("Initial frame collect failed, Trying alternate method")
         return (refresh_period, base_timestamp, timestamps[base_index:])
 
     except Exception, error:
@@ -90,18 +112,7 @@ def frame_data(view):
         return (refresh_period, timestamps)
 
     except Exception, error:
-        print ('Failed to get application latency data')
-
-def check_android_version():
-    try:
-
-        out = subprocess.check_output(['adb', 'shell', 'getprop', 'ro.build.version.release'])
-        print ('Android Version {}'.format(out))
-        version = int(out[0])
-        return version
-
-    except Exception, error:
-        print error
+        print 'Failed to get application latency data'
 
     
 def plot_data(fps_count,current_time,x_axis_start, x_axis_end):
@@ -119,7 +130,7 @@ def plot_data(fps_count,current_time,x_axis_start, x_axis_end):
         plt.pause(0.05)
         
     except Exception, error:
-        print ('Could not plot graph!')
+        print 'Could not plot graph!'
         print error
                   
 
@@ -130,28 +141,31 @@ def save_csv(col_1,col_2,mode):
             csv_out.writerow([col_1,col_2])
 
     except Exception, error:
-        print ('Could not save csv file')
+        print 'Could not save csv file'
         print error
 
 def continue_collect_frame_data():
     try:
         
-        version = check_android_version()
-        if version < 7:
+        view =  get_top_view()
+        if view is None:
+            view = old_top_view()
+
+        refresh_period, base_timestamp, timestamps = init_frame_data(view)
+
+        if base_timestamp == 0:
             view = 'SurfaceView'
-        if version >= 7:
-            view = get_top_view()
-            if view is None:
-                raise RuntimeError("Fail to get current SurfaceFlinger view")
-        print ('Current view: {}'.format(view))
+        print 'Current view:', view
+        
                 
+        timestamps = []
         refresh_period, base_timestamp, timestamps = init_frame_data(view)
         t_minus = dt.timedelta(seconds=-13)
         t_plus = dt.timedelta(seconds=+3)
 
     except Exception, error:
         print error
-        print ('Make sure device is connected and test application is running')
+        print 'Make sure device is connected and test application is running'
         
     try:
         
@@ -189,9 +203,9 @@ def continue_collect_frame_data():
             plot_data(fps_count,current_time,x_axis_start, x_axis_end)             
 
     except Exception, error:
-        print ('Could not run tests on current application window')
+        print 'Could not run tests on current application window'
     except KeyboardInterrupt:
-        print ('Closed by user!')
+        print 'Closed by user!'
         pass
 
 
